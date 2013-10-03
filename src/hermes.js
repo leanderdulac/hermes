@@ -57,7 +57,7 @@
 
 						if (_.isObject(result)) {
 							result.then(function() {
-								this.processRequest(requestData);
+								self.processRequest(requestData);
 							});
 						} else {
 							requestData.result.reject(data, status, headers);
