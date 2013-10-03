@@ -1,0 +1,23 @@
+{
+  "name": "hermes",
+  "version": "1.0.0",
+  "authors": [
+    "Jonathan Lima <greenboxal@gmail.com>"
+  ],
+  "description": "Simple and direct REST client for AngularJS",
+  "main": "src/hermes.js",
+  "keywords": [
+    "rest",
+    "client",
+    "angularjs"
+  ],
+  "license": "MIT",
+  "homepage": "http://github.com/pagarme/hermes",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
