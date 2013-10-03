@@ -60,7 +60,11 @@
 								self.processRequest(requestData);
 							});
 						} else {
-							requestData.result.reject(data, status, headers);
+							requestData.result.reject({
+								data: data, 
+								status: status,
+								headers: headers
+							});
 						}
 					}, self);
 				});
