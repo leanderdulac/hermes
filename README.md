@@ -1,4 +1,6 @@
 #Hermes
+[![Build Status](https://travis-ci.org/pagarme/hermes.png)](https://travis-ci.org/pagarme/hermes)
+
 Hermes is an AngularJS service that provides a direct and feature rich wrapper around $http for REST services.
 
 Soon the documentation will be complete.

@@ -4,11 +4,14 @@
   "description": "Simple and direct REST client for AngularJS",
   "main": "src/hermes.js",
   "scripts": {
-    "test": "grunt test"
+    "test": "grunt travis --verbose"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/pagarme/hermes.git"
+  },
+  "engines": {
+    "node": ">= 0.9"
   },
   "keywords": [
     "rest",
@@ -19,5 +22,16 @@
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/pagarme/hermes/issues"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "grunt-cli": ">= 0.1.7",
+    "grunt-contrib-concat": "*",
+    "grunt-contrib-jshint": "*",
+    "grunt-contrib-uglify": "*",
+    "grunt-bower": "*",
+    "grunt-bower-task": "*",
+    "grunt-karma": "latest",
+    "grunt-zip": "*"
   }
 }
