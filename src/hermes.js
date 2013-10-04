@@ -77,7 +77,8 @@
 					url: url,
 					method: method,
 					headers: config.headers || {},
-					params: config.params || {}
+					params: config.params || {},
+					cache: false
 				});
 
 				var requestData = {
