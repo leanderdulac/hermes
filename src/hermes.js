@@ -43,7 +43,7 @@
 
 			service.processRequest = function(requestData) {
 				var self = this;
-				var request = _.extend(requestData.request, {});
+				var request = _.extend({}, requestData.request);
 
 				_.each(this.configuration.requestBuilderHooks, function(hook) {
 					request = hook(request);
@@ -73,13 +73,13 @@
 			service.sendRequest = function(method, url, config) {
 				var deferred = $q.defer();
 
-				var request = _.extend(config, {
+				var request = _.merge({
 					url: url,
 					method: method,
-					headers: config.headers || {},
-					params: config.params || {},
+					headers: {},
+					params: {},
 					cache: false
-				});
+				}, config);
 
 				var requestData = {
 					request: request,
