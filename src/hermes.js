@@ -2,111 +2,117 @@
 
 (function() {
 
-	var module = angular.module('hermes', []);
+    var module = angular.module('hermes', []);
 
-	module.provider('Hermes', function() {
-		var defaultConfiguration;
+    module.provider('Hermes', function() {
+        var defaultConfiguration;
 
-		var Configuration = function() {
-			this.baseUrl = '';
-			this.requestBuilderHooks = [];
-			this.responseErrorHooks = [];
+        var Configuration = function() {
+            this.baseUrl = '';
+            this.requestBuilderHooks = [];
+            this.responseErrorHooks = [];
 
-			this.setBaseUrl = function(url) {
-				this.baseUrl = url;
+            this.setBaseUrl = function(url) {
+                this.baseUrl = url;
 
-				if (this.baseUrl[this.baseUrl.length - 1] == '/') {
-					this.baseUrl = this.baseUrl.substr(0, this.baseUrl.length - 1);
-				}
-			};
-		};
+                if (this.baseUrl[this.baseUrl.length - 1] == '/') {
+                    this.baseUrl = this.baseUrl.substr(0, this.baseUrl.length - 1);
+                }
+            };
+        };
 
-		var Element = function(service, baseUrl, name) {
-			var methods = ['get', 'put', 'post', 'patch', 'delete'];
-			var url = baseUrl + '/' + name;
+        var Element = function(service, baseUrl, name) {
+            var methods = ['get', 'put', 'post', 'patch', 'delete'];
+            var url = baseUrl + '/' + name;
 
-			_.each(methods, function(method) {
-				this[method] = function(config) {
-					return service.sendRequest(method, url, config || {});
-				};
-			}, this);
+            _.each(methods, function(method) {
+                this[method] = function(config) {
+                    return service.sendRequest(method, url, config || {});
+                };
+            }, this);
 
-			this.element = function(name) {
-				return new Element(service, url, name);
-			};
-		};
+            this.element = function(name) {
+                return new Element(service, url, name);
+            };
+        };
 
-		var createService = function($q, $http, configuration) {
-			var service = {};
+        var createService = function($q, $http, configuration) {
+            var service = {};
 
-			service.configuration = configuration;
+            service.configuration = configuration;
 
-			service.processRequest = function(requestData) {
-				var self = this;
-				var request = _.extend({}, requestData.request);
+            service.processRequest = function(requestData) {
+                var self = this;
+                var request = _.extend({}, requestData.request);
 
-				_.each(this.configuration.requestBuilderHooks, function(hook) {
-					request = hook(request);
-				}, this);
+                _.each(this.configuration.requestBuilderHooks, function(hook) {
+                    request = hook(request);
+                }, this);
 
-				$http(request).success(function(data, status, headers, config) {
-					requestData.result.resolve(data, status, headers);
-				}).error(function(data, status, headers, config) {
-					_.each(self.configuration.responseErrorHooks, function(hook) {
-						var result = hook(data, status, headers, request);
+                $http(request).success(function(data, status, headers, config) {
+                    requestData.result.resolve(data, status, headers);
+                }).error(function(data, status, headers, config) {
+                    var waiter;
 
-						if (_.isObject(result)) {
-							result.then(function() {
-								self.processRequest(requestData);
-							});
-						} else {
-							requestData.result.reject({
-								data: data, 
-								status: status,
-								headers: headers
-							});
-						}
-					}, self);
-				});
-			};
+                    _.each(self.configuration.responseErrorHooks, function(hook) {
+                        var result = hook(data, status, headers, request);
 
-			service.sendRequest = function(method, url, config) {
-				var deferred = $q.defer();
+                        if (_.isObject(result)) {
+                            waiter = result;
+                        }
+                    }, self);
 
-				var request = _.merge({
-					url: url,
-					method: method,
-					headers: {},
-					params: {},
-					cache: false
-				}, config);
+                    if (waiter != undefined) {
+                        waiter.then(function() {
+                            self.processRequest(requestData);
+                        });
+                    } else {
+                        requestData.result.reject({
+                            data: data,
+                            status: status,
+                            headers: headers
+                        });
+                    }
+                });
+            };
 
-				var requestData = {
-					request: request,
-					result: deferred
-				};
+            service.sendRequest = function(method, url, config) {
+                var deferred = $q.defer();
 
-				this.processRequest(requestData);
+                var request = _.merge({
+                    url: url,
+                    method: method,
+                    headers: {},
+                    params: {},
+                    cache: false
+                }, config);
 
-				return deferred.promise;
-			};
+                var requestData = {
+                    request: request,
+                    result: deferred
+                };
 
-			service.element = function(name) {
-				return new Element(this, configuration.baseUrl, name);
-			};
+                this.processRequest(requestData);
 
-			return service;
-		};
+                return deferred.promise;
+            };
 
-		defaultConfiguration = new Configuration();
+            service.element = function(name) {
+                return new Element(this, configuration.baseUrl, name);
+            };
 
-		this.Configuration = Configuration;
-		this.defaultConfiguration = defaultConfiguration;
-		this.createService = createService;
+            return service;
+        };
 
-		this.$get = function($q, $http) {
-			return createService($q, $http, defaultConfiguration);
-		};
-	});
+        defaultConfiguration = new Configuration();
+
+        this.Configuration = Configuration;
+        this.defaultConfiguration = defaultConfiguration;
+        this.createService = createService;
+
+        this.$get = function($q, $http) {
+            return createService($q, $http, defaultConfiguration);
+        };
+    });
 
 })();
