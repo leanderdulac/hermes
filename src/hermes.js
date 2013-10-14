@@ -51,13 +51,13 @@
                     request = hook(request);
                 }, this);
 
-                deferIt.promise.then(function(data, status, headers, config) {
-                    requestData.result.resolve(data, status, headers);
-                }, function(data, status, headers, config) {
+                deferIt.promise.then(function(data) {
+                    requestData.result.resolve(data.data, data.status, data.headers);
+                }, function(data) {
                     var waiter;
 
                     _.each(self.configuration.responseErrorHooks, function(hook) {
-                        var result = hook(data, status, headers, request);
+                        var result = hook(data.data, data.status, data.headers, request);
 
                         if (_.isObject(result)) {
                             waiter = result;
@@ -70,9 +70,9 @@
                         });
                     } else {
                         requestData.result.reject({
-                            data: data,
-                            status: status,
-                            headers: headers
+                            data: data.data,
+                            status: data.status,
+                            headers: data.headers
                         });
                     }
                 });
@@ -84,9 +84,19 @@
 
                     if (result != undefined) {
                         if (result.status == 200) {
-                            deferIt.resolve(result.data, result.status, result.headers, request);
+                            deferIt.resolve({
+                                data:result.data,
+                                status: result.status,
+                                headers: result.headers,
+                                config: request
+                            });
                         } else {
-                            deferIt.reject(result.data, result.status, result.headers, request);
+                            deferIt.reject({
+                                data:result.data,
+                                status: result.status,
+                                headers: result.headers,
+                                config: request
+                            });
                         }
 
                         skipHttp = true;
@@ -95,9 +105,19 @@
 
                 if (!skipHttp) {
                     $http(request).success(function (data, status, headers, config) {
-                        deferIt.resolve(data, status, headers, config);
+                        deferIt.resolve({
+                            data: data,
+                            status: status,
+                            headers: headers,
+                            config: config
+                        });
                     }).error(function (data, status, headers, config) {
-                        deferIt.reject(data, status, headers, config);
+                        deferIt.reject({
+                            data: data,
+                            status: status,
+                            headers: headers,
+                            config: config
+                        });
                     });
                 }
             };
