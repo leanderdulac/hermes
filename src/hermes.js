@@ -1,176 +1,126 @@
 'use strict';
 
-(function() {
-    var module = angular.module('hermes', []);
+angular.module('hermes', [])
+.provider('Hermes', function() {
+	var defaultConfiguration;
 
-    module.provider('Hermes', function() {
-        var defaultConfiguration;
+	var Configuration = function() {
+		this.baseUrl = '';
 
-        var Configuration = function() {
-            this.baseUrl = '';
-            this.requestBuilderHooks = [];
-            this.responseErrorHooks = [];
+		this.setBaseUrl = function(url) {
+			this.baseUrl = url;
+		};
+	};
 
-            this.setBaseUrl = function(url) {
-                this.baseUrl = url;
+	var Element = function(service, baseUrl, name) {
+		var methods = ['get', 'put', 'post', 'patch', 'delete'];
+		var url = baseUrl + '/' + name;
 
-                if (this.baseUrl[this.baseUrl.length - 1] == '/') {
-                    this.baseUrl = this.baseUrl.substr(0, this.baseUrl.length - 1);
-                }
-            };
-        };
+		_.each(methods, function(method) {
+			this[method] = function(config) {
+				return service.sendRequest(method, url, config || {});
+			};
+		}, this);
 
-        var Element = function(service, baseUrl, name) {
-            var methods = ['get', 'put', 'post', 'patch', 'delete'];
-            var url = baseUrl + '/' + name;
+		this.element = function(name) {
+			return new ELement(service, url, name);
+		};
+	};
 
-            _.each(methods, function(method) {
-                this[method] = function(config) {
-                    return service.sendRequest(method, url, config || {});
-                };
-            }, this);
+	var Service = function($q, $http, configuration) {
+		var builderHooks = [];
+		var errorHooks = [];
 
-            this.element = function(name) {
-                return new Element(service, url, name);
-            };
-        };
+		this.addBuilderHook = function(hook) {
+			var defered = $q.defer();
+			var index = builderHooks.length;
 
-        var createService = function($q, $http, configuration) {
-            var service = {};
+			builderHooks.push(hook);
 
-            service.configuration = configuration;
-            service.mockData = {};
+			defered.promise.then(function() {
+				builderHooks.splice(index);
+			});
 
-            service.processRequest = function(requestData) {
-                var self = this;
-                var request = _.extend({}, requestData.request);
-                var deferIt = $q.defer();
-                var skipHttp = false;
+			return defered;
+		};
 
-                _.each(this.configuration.requestBuilderHooks, function(hook) {
-                    request = hook(request);
-                }, this);
+		this.addErrorHook = function(hook) {
+			var defered = $q.defer();
+			var index = errorHooks.length;
 
-                deferIt.promise.then(function(data) {
-                    requestData.result.resolve(data.data, data.status, data.headers);
-                }, function(data) {
-                    var waiter;
+			errorHooks.push(hook);
 
-                    _.each(self.configuration.responseErrorHooks, function(hook) {
-                        var result = hook(data.data, data.status, data.headers, request);
+			defered.promise.then(function() {
+				errorHooks.splice(index);
+			});
 
-                        if (_.isObject(result)) {
-                            waiter = result;
-                        }
-                    }, self);
+			return defered;
+		};
 
-                    if (waiter != undefined) {
-                        waiter.then(function() {
-                            self.processRequest(requestData);
-                        });
-                    } else {
-                        requestData.result.reject({
-                            data: data.data,
-                            status: data.status,
-                            headers: data.headers
-                        });
-                    }
-                });
+		this.sendRequest = function(method, url, config) {
+			var defered = $q.defer();
+			var request = _.merge({
+				url: url,
+				method: method,
+				headers: {},
+				params: {},
+				cache: false
+			}, config);
 
-                if (this.mockImpl
-                    && this.mockData[requestData.request.url] != undefined
-                    && this.mockData[requestData.request.url][requestData.request.method] != undefined) {
-                    var result = this.mockImpl.processMock(this.mockData[requestData.request.url][requestData.request.method], request);
+			this.processRequest({
+				request: request,
+				result: defered
+			});
 
-                    if (result != undefined) {
-                        if (result.status == 200) {
-                            deferIt.resolve({
-                                data:result.data,
-                                status: result.status,
-                                headers: result.headers,
-                                config: request
-                            });
-                        } else {
-                            deferIt.reject({
-                                data:result.data,
-                                status: result.status,
-                                headers: result.headers,
-                                config: request
-                            });
-                        }
+			return defered.promise;
+		};
 
-                        skipHttp = true;
-                    }
-                }
+		this.processRequest = function(requestData) {
+			var self = this;
+			var request = _.clone(requestData.request);
+			var defered = $q.defer();
+			
+			_.each(builderHooks, function(hook) {
+				request = hook(request);
+			});
 
-                if (!skipHttp) {
-                    $http(request).success(function (data, status, headers, config) {
-                        deferIt.resolve({
-                            data: data,
-                            status: status,
-                            headers: headers,
-                            config: config
-                        });
-                    }).error(function (data, status, headers, config) {
-                        deferIt.reject({
-                            data: data,
-                            status: status,
-                            headers: headers,
-                            config: config
-                        });
-                    });
-                }
-            };
+			$http(request)
+			.success(function(data, status, headers, config) {
+				requestData.result.resolve(data, status, headers);
+			})
+			.error(function(data, status, headers, config) {
+				var waiter;
 
-            service.sendRequest = function(method, url, config) {
-                var deferred = $q.defer();
+				_.each(errorHooks, function(hook) {
+					var result = hook(data, status, headers, request);
 
-                var request = _.merge({
-                    url: url,
-                    method: method,
-                    headers: {},
-                    params: {},
-                    cache: false
-                }, config);
+					if (result && _.isFunction(result.then)) {
+						waiter = result;
+					}
+				});
 
-                var requestData = {
-                    request: request,
-                    result: deferred
-                };
+				if (waiter) {
+					waiter.then(function() {
+						self.processRequest(requestData);
+					}, function() {
+						requestData.result.reject(data, status, headers);
+					});
+				}
+			});
+		};
 
-                this.processRequest(requestData);
+		this.element = function(name) {
+			return new Element(this, configuration.baseUrl, name);
+		};
+	};
 
-                return deferred.promise;
-            };
+	this.$get = function($q, $http) {
+		return new Service($q, $http, defaultConfiguration);
+	};
 
-            service.mockCall = function(method, url, id) {
-                if (this.mockData[url] == undefined) {
-                    this.mockData[url] = {};
-                }
+	this.Configuration = Configuration;
+	this.Service = Service;
 
-                if (this.mockData[url][method] != undefined) {
-                    return this.mockData[url][method];
-                }
+	defaultConfiguration = new Configuration();
+});
 
-                this.mockData[url][method] = id;
-            };
-
-            service.element = function(name) {
-                return new Element(this, configuration.baseUrl, name);
-            };
-
-            return service;
-        };
-
-        defaultConfiguration = new Configuration();
-
-        this.Configuration = Configuration;
-        this.defaultConfiguration = defaultConfiguration;
-        this.createService = createService;
-
-        this.$get = function($q, $http) {
-            return createService($q, $http, defaultConfiguration);
-        };
-    });
-
-})();
