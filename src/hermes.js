@@ -105,6 +105,8 @@ angular.module('hermes', [])
 					}, function() {
 						requestData.result.reject(data, status, headers);
 					});
+				} else {
+					requestData.result.reject(data, status, headers);
 				}
 			});
 		};
