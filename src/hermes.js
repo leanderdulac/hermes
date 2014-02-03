@@ -28,34 +28,38 @@ angular.module('hermes', [])
 	};
 
 	var Service = function($q, $http, configuration) {
+		var hookIdCounter = 0;
 		var builderHooks = [];
 		var errorHooks = [];
 
-		this.addBuilderHook = function(hook) {
+		var addHook = function(db, fn, priority) {
 			var defered = $q.defer();
-			var index = builderHooks.length;
+			var id = hookIdCounter++;
 
-			builderHooks.push(hook);
+			if (!priority) {
+				priority = 0;
+			}
+			
+			for (var i = 0; i <= db.length; i++) {
+				if (i == db.length || priority >= db[i].priority) {
+					db.splice(i, 0, {
+						id: id,
+						priority: priority,
+						fn: fn
+					});
+					break;
+				}
+			}
 
 			defered.promise.then(function() {
-				builderHooks.splice(index);
+				_.remove(db, { id: id });
 			});
 
 			return defered;
 		};
 
-		this.addErrorHook = function(hook) {
-			var defered = $q.defer();
-			var index = errorHooks.length;
-
-			errorHooks.push(hook);
-
-			defered.promise.then(function() {
-				errorHooks.splice(index);
-			});
-
-			return defered;
-		};
+		this.addBuilderHook = _.bind(addHook, this, builderHooks); 
+		this.addErrorHook = _.bind(addHook, this, errorHooks);
 
 		this.sendRequest = function(method, url, config) {
 			var defered = $q.defer();
@@ -81,7 +85,7 @@ angular.module('hermes', [])
 			var defered = $q.defer();
 			
 			_.each(builderHooks, function(hook) {
-				request = hook(request);
+				request = hook.fn(request);
 			});
 
 			$http(request)
@@ -92,7 +96,7 @@ angular.module('hermes', [])
 				var waiter;
 
 				_.each(errorHooks, function(hook) {
-					var result = hook(data, status, headers, request);
+					var result = hook.fn(data, status, headers, request);
 
 					if (result && _.isFunction(result.then)) {
 						waiter = result;
