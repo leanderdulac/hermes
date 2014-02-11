@@ -23,7 +23,7 @@ angular.module('hermes', [])
 		}, this);
 
 		this.element = function(name) {
-			return new ELement(service, url, name);
+			return new Element(service, url, name);
 		};
 	};
 
