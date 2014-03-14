@@ -23,13 +23,23 @@
         var methods = ['Get', 'Put', 'Post', 'Patch', 'Delete'];
         var preService = HermesProvider.Service;
         var preElement = HermesProvider.Element;
+		var bypass = false;
+
+		HermesProvider.bypassMocks = function() {
+			bypass = true;
+		};
 
         HermesProvider.Service = function($q) {
             preService.apply(this, arguments);
 
+			this.doSendRequest = this.sendRequest;
 			this.doProcessRequest = this.processRequest;
 
             this.sendRequest = function(request, data) {
+				if (bypass) {
+					return this.doSendRequest.apply(this, arguments);
+				}
+
 				var defered = $q.defer();
 
 				if (request.element.mocks && request.element.mocks[request.request.method]) {
@@ -58,6 +68,10 @@
             };
 
             this.processRequest = function(requestData) {
+				if (bypass) {
+					return this.doProcessRequest.apply(this, arguments);
+				}
+
                 (this.mockQueue || (this.mockQueue = [])).push(requestData);
             };
 

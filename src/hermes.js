@@ -26,7 +26,7 @@ angular.module('hermes', [])
 		}, this);
 
 		this.element = function(name) {
-			return elementCache[name] || (elementCache[name] = new HermesProvider.Element(service, url, name));
+			return elementCache[name] || (elementCache[name] = new HermesProvider.Element(service, this.url, name));
 		};
 	};
 
