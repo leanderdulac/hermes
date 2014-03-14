@@ -1,110 +1,110 @@
 'use strict';
 
-(window.jasmine || window.mocha) && (function(window) {
-    var baseSpec = {
-        hermesMocks: [],
-        hermesMockStack: {}
-    };
-    var currentSpec = baseSpec;
-    var mockData = {};
-    var mockDataCounter = 0;
+(function(window) {
+    var currentSpec;
 
     beforeEach(function() {
         currentSpec = this;
-        currentSpec.hermesMocks = [];
-        currentSpec.hermesMockStack = {};
+        currentSpec.hermesExpects = [];
     });
 
     afterEach(function() {
-        for (var id in currentSpec.hermesMockStack) {
-            mockData[id] = currentSpec.hermesMockStack[id];
-        }
+        _.each(currentSpec.hermesExpects, function(e) {
+            if (!e.ok) {
+                throw new Error("Unmatched expectation: " + e.method + " " + e.element.url);
+            }
+        });
 
-        for (var i = 0; i < currentSpec.hermesMocks.length; i++) {
-            delete mockData[currentSpec.hermesMocks[i]];
-        }
-
-        currentSpec.hermesMockStack = null;
-        currentSpec.hermesMocks = null;
-        currentSpec = baseSpec;
+        currentSpec.hermesExpects = null;
+        currentSpec = null;
     });
 
-    function isSpecRunning() {
-        return currentSpec && (window.mocha || currentSpec.queue.running);
-    }
+    angular.module('hermes').config(function(HermesProvider) {
+        var methods = ['Get', 'Put', 'Post', 'Patch', 'Delete'];
+        var preService = HermesProvider.Service;
+        var preElement = HermesProvider.Element;
 
-    var createHermesMockImpl = function(Hermes) {
-        if (Hermes.mockImpl != undefined) {
-            return Hermes.mockImpl;
-        }
+        HermesProvider.Service = function($q) {
+            preService.apply(this, arguments);
 
-        var Element = function(service, baseUrl, name) {
-            var methods = ['get', 'put', 'post', 'patch', 'delete'];
-            var url = baseUrl + '/' + name;
+			this.doProcessRequest = this.processRequest;
 
-            _.each(methods, function(method) {
-                this[method] = function(callback, status, headers) {
-                    if (!_.isFunction(callback)) {
-                        var data = callback;
+            this.sendRequest = function(request, data) {
+				var defered = $q.defer();
 
-                        if (status == undefined) {
-                            status = 200;
-                        }
+				if (request.element.mocks && request.element.mocks[request.request.method]) {
+                    var result = request.element.mocks[request.request.method](data);
+					
+					if (!result) {
+						result = {
+							status: 400
+						};
+					}
 
-                        callback = function() {
-                            return {
-                                data: data,
-                                status: status,
-                                headers: headers
-                            };
-                        };
+                    if (result.status === undefined) {
+                        result.status = 400;
                     }
 
-                    return service.sendRequest(method, url, callback);
-                };
-            }, this);
+                    if (result.status == 400) {
+                        defered.resolve(result);
+                    } else {
+                        defered.reject(result);
+                    }
+                } else {
+					defered.resolve({ status: 400 });
+				}
 
-            this.element = function(name) {
-                return new Element(service, url, name);
+				return defered.promise;
+            };
+
+            this.processRequest = function(requestData) {
+                (this.mockQueue || (this.mockQueue = [])).push(requestData);
+            };
+
+            this.flush = function() {
+				if (!this.mockQueue) {
+                    return;
+                }
+
+                while (this.mockQueue.length > 0) {
+                    this.doProcessRequest(this.mockQueue.shift());
+                }
+            };
+
+            this.verifyNoPendingRequests = function() {
+                if (this.mockQueue.length > 0) {
+                    throw new Error("Pending requests: " + this.mockQueue.length);
+                }
             };
         };
 
-        var service = {};
+        HermesProvider.Element = function() {
+            preElement.apply(this, arguments);
 
-        service.processMock = function(id, config) {
-            if (mockData[id]) {
-                return mockData[id](config);
-            }
+            _.each(methods, function(method) {
+                this['when' + method] = function(cb) {
+                    (this.mocks || (this.mocks = {}))[method.toLowerCase()] = cb;
+                };
 
-            return undefined;
+                this['expect' + method] = function(cb) {
+                    var expect = {
+                        method: method,
+                        element: this,
+                        ok: false
+                    };
+
+                    (this.mocks || (this.mocks = {}))[method.toLowerCase()] = function() {
+                        if (cb) {
+                            cb.apply(undefined, arguments);
+                        }
+
+                        expect.ok = true;
+                    };
+
+                    currentSpec.hermesExpects.push(expect);
+                };
+            }, this);
         };
-
-        service.sendRequest = function(method, url, callback) {
-            var id = mockDataCounter++;
-            var oldId = Hermes.mockCall(method, url, id);
-
-            if (oldId != undefined) {
-                currentSpec.hermesMockStack[id] = mockData[oldId];
-                mockData[oldId] = callback;
-            } else {
-                currentSpec.hermesMocks.push(id);
-                mockData[id] = callback;
-            }
-        };
-
-        service.element = function(name) {
-            return new Element(this, Hermes.configuration.baseUrl, name);
-        };
-
-        Hermes.mockImpl = service;
-        return service;
-    };
-
-    window.createHermesMock = function(Hermes) {
-        var run = function() {
-            return createHermesMockImpl(Hermes);
-        };
-
-        return isSpecRunning() ? run(Hermes) : run;
-    };
+    });
 })(window);
+
