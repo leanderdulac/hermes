@@ -45,6 +45,8 @@
 				if (request.element.mocks && request.element.mocks[request.request.method]) {
                     var result = request.element.mocks[request.request.method](data);
 					
+					console.log(result);
+
 					if (!result) {
 						result = {
 							status: 400
@@ -108,11 +110,14 @@
                     };
 
                     (this.mocks || (this.mocks = {}))[method.toLowerCase()] = function() {
+						var result;
+
                         if (cb) {
-                            cb.apply(undefined, arguments);
+                            result = cb.apply(undefined, arguments);
                         }
 
                         expect.ok = true;
+						return result;
                     };
 
                     currentSpec.hermesExpects.push(expect);
