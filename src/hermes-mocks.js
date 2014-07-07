@@ -45,8 +45,6 @@
 				if (request.element.mocks && request.element.mocks[request.request.method]) {
                     var result = request.element.mocks[request.request.method](data);
 					
-					console.log(result);
-
 					if (!result) {
 						result = {
 							status: 400
