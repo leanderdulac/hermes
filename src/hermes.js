@@ -20,8 +20,17 @@ angular.module('hermes', [])
 		this.url = baseUrl + '/' + name;
 
 		_.each(methods, function(method) {
+			var self = this;
+			var prepareName = 'prepare' + method.charAt(0).toUpperCase() + method.slice(1);
+
+			this[prepareName] = function(config) {
+				return function() {
+					return service.prepareRequest(self, method, config);
+				};
+			};
+
 			this[method] = function(config) {
-				return service.dispatchRequest(method, this, config || {});
+				return service.dispatchRequest(this, this[prepareName](config || {}));
 			};
 		}, this);
 
@@ -30,7 +39,7 @@ angular.module('hermes', [])
 		};
 	};
 
-	var Service = function($q, $http, configuration) {
+	var Service = function($q, $rootScope, $http, configuration) {
 		var hookIdCounter = 0;
 		var builderHooks = [];
 		var errorHooks = [];
@@ -65,8 +74,7 @@ angular.module('hermes', [])
 		this.addBuilderHook = _.bind(addHook, this, builderHooks); 
 		this.addErrorHook = _.bind(addHook, this, errorHooks);
 
-		this.dispatchRequest = function(method, element, config) {
-			var defered = $q.defer();
+		this.prepareRequest = function(element, method, config) {
 			var request = _.merge({
 				url: element.url,
 				method: method,
@@ -74,9 +82,35 @@ angular.module('hermes', [])
 				params: {},
 				cache: false
 			}, config);
+			
+			_.each(builderHooks, function(hook) {
+				request = hook.fn(request);
+			});
+
+			return request;
+		};
+
+		this.dispatchRequest = function(element, build) {
+			var defered = $q.defer();
+
+			defered.promise.success = function(handler) {
+				this.then(function(response) {
+					return handler(response.data, response.status, response.headers);
+				});
+
+				return this;
+			};
+
+			defered.promise.error = function(handler) {
+				this.then(null, function(response) {
+					return handler(response.data, response.status, response.headers);
+				});
+
+				return this;
+			};
 
 			this.processRequest({
-				request: request,
+				build: build,
 				result: defered,
 				element: element
 			});
@@ -85,21 +119,76 @@ angular.module('hermes', [])
 		};
 
 		this.sendRequest = function(requestData, request) {
-			return $http(request);
+			if (request.chunked) {
+				var defered = $q.defer();
+				var xhr = new XMLHttpRequest();
+				var partialProgress = 0;
+
+				var progress = function(final) {
+					var response;
+					
+					response = xhr.response.slice(partialProgress);
+					partialProgress = xhr.response.length;
+
+					if (request.chunkReceived) {
+						$rootScope.$apply(function() {
+							request.chunkReceived(response, xhr.status);
+						});
+					}
+
+					if (final) {
+						if (xhr.status == 200) {
+							defered.resolve({
+								status: 200,
+								data: xhr.response,
+								headers: xhr.getAllResponseHeaders()
+							});
+						} else {
+							defered.reject({
+								status: xhr.status,
+								data: xhr.response,
+								headers: xhr.getAllResponseHeaders()
+							});
+						}
+					}
+				};
+
+				xhr.open(request.method, request.url, true);
+
+				_.each(request.headers, function(value, key) {
+					if (value !== undefined) {
+						xhr.setRequestHeader(key, value);
+					}
+				});
+
+				xhr.onprogress = function() {
+					if (xhr.readyState == 2) {
+						if (request.headersReceived) {
+							$rootScope.$apply(function() {
+								request.headersReceived(xhr.status, xhr.getAllResponseHeaders());
+							});
+						}
+					} else if (xhr.readyState == 3 || xhr.readyState == 4) {
+						progress(xhr.readyState == 4);
+					}
+				};
+
+				xhr.send(request.data || null);
+
+				return defered.promise;
+			} else {
+				return $http(request);
+			}
 		};
 
 		this.processRequest = function(requestData) {
 			var self = this;
-			var request = _.clone(requestData.request);
+			var request = requestData.build();
 			var defered = $q.defer();
-
-			_.each(builderHooks, function(hook) {
-				request = hook.fn(request);
-			});
 
 			this.sendRequest(requestData, request)
 			.then(function(req) {
-				requestData.result.resolve(req.data, req.status, req.headers);
+				requestData.result.resolve(req);
 			}, function(req) {
 				var waiter;
 
@@ -115,10 +204,10 @@ angular.module('hermes', [])
 					waiter.then(function() {
 						self.processRequest(requestData);
 					}, function() {
-						requestData.result.reject(req.data, req.status, req.headers);
+						requestData.result.reject(req);
 					});
 				} else {
-					requestData.result.reject(req.data, req.status, req.headers);
+					requestData.result.reject(req);
 				}
 			});
 		};
@@ -128,8 +217,8 @@ angular.module('hermes', [])
 		};
 	};
 
-	this.$get = function($q, $http) {
-		return new HermesProvider.Service($q, $http, defaultConfiguration);
+	this.$get = function($q, $rootScope, $http) {
+		return new HermesProvider.Service($q, $rootScope, $http, defaultConfiguration);
 	};
 
 	this.Configuration = Configuration;
