@@ -186,6 +186,8 @@ angular.module('hermes', [])
 			var request = requestData.build();
 			var defered = $q.defer();
 
+			request.url = configuration.baseUrl + request.url;
+
 			this.sendRequest(requestData, request)
 			.then(function(req) {
 				requestData.result.resolve(req);
@@ -213,7 +215,7 @@ angular.module('hermes', [])
 		};
 
 		this.element = function(name) {
-			return elementCache[name] || (elementCache[name] = new HermesProvider.Element(this, configuration.baseUrl, name));
+			return elementCache[name] || (elementCache[name] = new HermesProvider.Element(this, '', name));
 		};
 	};
 
