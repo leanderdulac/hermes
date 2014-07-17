@@ -35,15 +35,15 @@
 			this.doSendRequest = this.sendRequest;
 			this.doProcessRequest = this.processRequest;
 
-            this.sendRequest = function(request, data) {
+            this.sendRequest = function(requestData, request) {
 				if (bypass) {
 					return this.doSendRequest.apply(this, arguments);
 				}
 
 				var defered = $q.defer();
 
-				if (request.element.mocks && request.element.mocks[request.request.method]) {
-                    var result = request.element.mocks[request.request.method](data);
+				if (requestData.element.mocks && requestData.element.mocks[request.method]) {
+                    var result = requestData.element.mocks[request.method](data);
 					
 					if (!result) {
 						result = {
