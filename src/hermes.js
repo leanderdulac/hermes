@@ -1,11 +1,27 @@
 'use strict';
 
 angular.module('hermes', [])
-.factory('HttpStream', function($q) {
+.factory('HttpStream', function($rootScope, $q) {
 	return function(request) {
 		var defered = $q.defer();
 		var xhr = new XMLHttpRequest();
+		var headersArrived = false;
 		var partialProgress = 0;
+
+		var checkHeaders = function() {
+			if (headersArrived) {
+				return;
+			}
+
+			$rootScope.$apply(function() {
+				request.stream.writePreamble({
+					status: xhr.status,
+					headers: xhr.getAllResponseHeaders()
+				});
+			});
+
+			headersArrived = true;
+		};
 
 		var progress = function(final) {
 			var response;
@@ -31,6 +47,10 @@ angular.module('hermes', [])
 						headers: xhr.getAllResponseHeaders()
 					});
 				}
+
+				$rootScope.$apply(function() {
+					request.stream.close();
+				});
 			}
 		};
 
@@ -38,13 +58,9 @@ angular.module('hermes', [])
 
 		xhr.onprogress = function() {
 			if (xhr.readyState == 2) {
-				$rootScope.$apply(function() {
-					request.stream.writePreamble({
-						status: xhr.status,
-						headers: xhr.getAllResponseHeaders()
-					});
-				});
+				checkHeaders();
 			} else if (xhr.readyState == 3 || xhr.readyState == 4) {
+				checkHeaders();
 				progress(xhr.readyState == 4);
 			}
 		};
@@ -136,7 +152,7 @@ angular.module('hermes', [])
 			};
 
 			this[method] = function(config) {
-				return service.dispatchRequest(this, this[prepareName](config || {}));
+				return service.dispatchRequest(this[prepareName](config || {}));
 			};
 		}, this);
 
@@ -149,7 +165,7 @@ angular.module('hermes', [])
 			if (HermesProvider.cacheElements) {
 				return elementCache[name] || (elementCache[name] = create());
 			} else {
-				create();
+				return create();
 			}
 		};
 	};
@@ -233,7 +249,7 @@ angular.module('hermes', [])
 				var waiter;
 
 				_.each(errorHooks, function(hook) {
-					var result = hook.fn(res.data, res.status, res.headers, request);
+					var result = hook.fn(res.data, res.status, res.headers, requestData.request);
 
 					if (result && _.isFunction(result.then)) {
 						waiter = result;
@@ -261,7 +277,7 @@ angular.module('hermes', [])
 			if (HermesProvider.cacheElements) {
 				return elementCache[name] || (elementCache[name] = create());
 			} else {
-				create();
+				return create();
 			}
 		};
 	};
