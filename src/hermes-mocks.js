@@ -19,43 +19,43 @@
         currentSpec = null;
     });
 
-    angular.module('hermes').config(function(HermesProvider) {
-        var methods = ['Get', 'Put', 'Post', 'Patch', 'Delete'];
+    angular.module('hermes')
+	.config(function(HermesProvider) {
+		var bypass = false;
         var preService = HermesProvider.Service;
         var preElement = HermesProvider.Element;
-		var bypass = false;
 
 		HermesProvider.bypassMocks = function() {
 			bypass = true;
 		};
 
-        HermesProvider.Service = function($q) {
+        HermesProvider.Service = function($q, $rootScope, $http, HermesPromise, HttpStream, configuration) {
             preService.apply(this, arguments);
 
 			this.doSendRequest = this.sendRequest;
 			this.doProcessRequest = this.processRequest;
 
-            this.sendRequest = function(requestData, request) {
+            this.sendRequest = function(request) {
 				if (bypass) {
 					return this.doSendRequest.apply(this, arguments);
 				}
 
 				var defered = $q.defer();
 
-				if (requestData.element.mocks && requestData.element.mocks[request.method]) {
-                    var result = requestData.element.mocks[request.method](data);
-					
+				if (request.element.mocks && request.element.mocks[request.method]) {
+                    var result = request.element.mocks[request.method](request.build(this));
+
 					if (!result) {
 						result = {
-							status: 400
+							status: 200
 						};
 					}
 
                     if (result.status === undefined) {
-                        result.status = 400;
+                        result.status = 200;
                     }
 
-                    if (result.status == 400) {
+                    if (result.status == 200) {
                         defered.resolve(result);
                     } else {
                         defered.reject(result);
@@ -95,7 +95,9 @@
         HermesProvider.Element = function() {
             preElement.apply(this, arguments);
 
-            _.each(methods, function(method) {
+            _.each(HermesProvider.methods, function(method) {
+				method = method.charAt(0).toUpperCase() + method.slice(1);
+
                 this['when' + method] = function(cb) {
                     (this.mocks || (this.mocks = {}))[method.toLowerCase()] = cb;
                 };
@@ -122,6 +124,8 @@
                 };
             }, this);
         };
+
+		HermesProvider.cacheElements = true;
     });
 })(window);
 
