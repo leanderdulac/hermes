@@ -1,11 +1,11 @@
 'use strict';
 
 angular.module('hermes', [])
-.factory('HttpStream', function($rootScope, $q) {
+.factory('HttpStream', function($rootScope, $q, $browser) {
 	return function(request) {
 		var defered = $q.defer();
 		var xhr = new XMLHttpRequest();
-		var headersArrived = false;
+		var headersArrived = false, finished = false;
 		var partialProgress = 0;
 
 		var checkHeaders = function() {
@@ -51,12 +51,20 @@ angular.module('hermes', [])
 				$rootScope.$apply(function() {
 					request.stream.close();
 				});
+
+				if ($browser.$$completeOutstandingRequest) {
+					$browser.$$completeOutstandingRequest(angular.noop);
+				}
+
+				finished = true;
 			}
 		};
 
-		xhr.open(request.method, request.url, true);
+		var trackProgress = function() {
+			if (finished) {
+				return;
+			}
 
-		xhr.onprogress = function() {
 			if (xhr.readyState == 2) {
 				checkHeaders();
 			} else if (xhr.readyState == 3 || xhr.readyState == 4) {
@@ -65,11 +73,27 @@ angular.module('hermes', [])
 			}
 		};
 
+		xhr.open(request.method, request.url, true);
+
+		xhr.onprogress = function() {
+			if (xhr.readyState == 4) {
+				trackProgress();
+			}
+		};
+
+		xhr.onreadystatechange = function() {
+			trackProgress();
+		};
+
 		_.each(request.headers, function(value, key) {
 			if (value !== undefined) {
 				xhr.setRequestHeader(key, value);
 			}
 		});
+
+		if ($browser.$$incOutstandingRequestCount) {
+			$browser.$$incOutstandingRequestCount();
+		}
 
 		xhr.send(request.data || null);
 
