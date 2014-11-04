@@ -8,6 +8,16 @@ angular.module('hermes', [])
 		var headersArrived = false, finished = false;
 		var partialProgress = 0;
 
+		var stringifyQS = function(obj) {
+			var result = '';
+
+			for(var key in obj) {
+				result += key + '=' + encodeURIComponent(obj[key]);
+			}
+
+			return result;
+		};
+
 		var checkHeaders = function() {
 			if (headersArrived) {
 				return;
@@ -73,7 +83,7 @@ angular.module('hermes', [])
 			}
 		};
 
-		xhr.open(request.method, request.url, true);
+		xhr.open(request.method, request.url + '?' + stringifyQS(request.params), true);
 
 		xhr.onprogress = function() {
 			if (xhr.readyState == 4) {
