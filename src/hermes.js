@@ -1,6 +1,42 @@
 'use strict';
 
 angular.module('hermes', [])
+.factory('HttpMultipartForm', function($rootScope, $q, $browser) {
+	return function(request) {
+		var defered = $q.defer();
+		var xhr = new XMLHttpRequest();
+		var form = new FormData();
+		
+		form.append(request.form.alias, request.form.file);
+
+		xhr.onload = function() {
+			defered.resolve({
+				status: 200,
+				data: xhr.response,
+				headers: xhr.getAllResponseHeaders()
+			});
+		};
+
+		xhr.onerror = function() {
+			defered.reject({
+				status: xhr.status,
+				data: xhr.response,
+				headers: xhr.getAllResponseHeaders()
+			});
+		};
+
+		xhr.open(request.method, request.url, true);
+		xhr.setRequestHeader("Content-Type","multipart/form-data");		
+
+		// angular.forEach(request.headers, function(value, name) {
+		// 	xhr.setRequestHeader(name, value);
+		// });
+
+		xhr.send(form);
+
+		return defered.promise;
+	};
+})
 .factory('HttpStream', function($rootScope, $q, $browser) {
 	return function(request) {
 		var defered = $q.defer();
@@ -133,6 +169,22 @@ angular.module('hermes', [])
 		return defered;
 	};
 })
+.factory('HermesFileUploader', function($q) {
+	var HermesFileUploader = function() {
+		this.file = null;
+		this.alias = 'file';
+	};
+
+	HermesFileUploader.prototype.setFile = function(content) {
+		this.file = content[0].files[0];
+	};
+
+	HermesFileUploader.prototype.getFile = function() {
+		return this.file;
+	};
+
+	return HermesFileUploader;
+})
 .provider('Hermes', function() {
 	var HermesProvider = this;
 	var defaultConfiguration;
@@ -204,7 +256,7 @@ angular.module('hermes', [])
 		};
 	};
 
-	var Service = function($q, $rootScope, $http, HermesPromise, HttpStream, configuration) {
+	var Service = function($q, $rootScope, $http, HermesPromise, HttpStream, HttpMultipartForm, configuration) {
 		var hookIdCounter = 0;
 		var builderHooks = [];
 		var errorHooks = [];
@@ -266,7 +318,9 @@ angular.module('hermes', [])
 		this.sendRequest = function(request) {
 			var built = request.build(this);
 
-			if (built.stream) {
+			if (built.form) {
+				return HttpMultipartForm(built);
+			} else if (built.stream) {
 				return HttpStream(built);
 			} else {
 				return $http(built);
