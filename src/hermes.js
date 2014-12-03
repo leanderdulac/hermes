@@ -44,7 +44,7 @@ angular.module('hermes', [])
 		};
 
 		xhr.open(request.method, request.url + '?' + stringifyQS(request.params) + '&' + extraBody, true);
-		xhr.setRequestHeader("Content-Type","multipart/form-data");		
+		// xhr.setRequestHeader("Content-Type","multipart/form-data");		
 
 		// angular.forEach(request.headers, function(value, name) {
 		// 	xhr.setRequestHeader(name, value);
