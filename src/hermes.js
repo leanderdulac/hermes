@@ -6,6 +6,24 @@ angular.module('hermes', [])
 		var defered = $q.defer();
 		var xhr = new XMLHttpRequest();
 		var form = new FormData();
+
+		var stringifyQS = function(obj) {
+			var result = '';
+
+			for(var key in obj) {
+				result += key + '=' + encodeURIComponent(obj[key]);
+			}
+
+			return result;
+		};
+
+		var extraBody = '';
+
+		if (typeof request.data == 'string') {
+			extraBody = request.data;
+		} else {
+			extraBody = stringifyQS(request.data);
+		}
 		
 		form.append(request.form.alias, request.form.file);
 
@@ -25,7 +43,7 @@ angular.module('hermes', [])
 			});
 		};
 
-		xhr.open(request.method, request.url, true);
+		xhr.open(request.method, request.url + '?' + stringifyQS(request.params) + '&' + extraBody, true);
 		xhr.setRequestHeader("Content-Type","multipart/form-data");		
 
 		// angular.forEach(request.headers, function(value, name) {
