@@ -19,11 +19,13 @@ angular.module('hermes', [])
 
 		var extraBody = '';
 
-		if (typeof request.data == 'string') {
-			extraBody = request.data;
-		} else {
-			extraBody = stringifyQS(request.data);
-		}
+		// if (typeof request.data == 'string') {
+		// 	extraBody = request.data;
+		// } else {
+		// 	extraBody = stringifyQS(request.data);
+		// }
+
+		extraBody = stringifyQS(request.data);
 		
 		form.append(request.form.alias, request.form.file);
 
