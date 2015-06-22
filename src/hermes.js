@@ -19,14 +19,21 @@ angular.module('hermes', [])
 
 		var extraBody = '';
 
-		// if (typeof request.data == 'string') {
-		// 	extraBody = request.data;
-		// } else {
-		// 	extraBody = stringifyQS(request.data);
-		// }
+		if (typeof request.data == 'string') {
+			var extra;
+			
+			try {
+				extra = JSON.parse(request.data);
+				extraBody = stringifyQS(extra);
+			}
+			catch(err) {
+				extraBody = request.data;
+			}
 
-		extraBody = stringifyQS(request.data);
-		
+		} else {
+			extraBody = stringifyQS(request.data);
+		}
+
 		form.append(request.form.alias, request.form.file);
 
 		xhr.onload = function() {
@@ -45,7 +52,9 @@ angular.module('hermes', [])
 			});
 		};
 
-		xhr.open(request.method, request.url + '?' + stringifyQS(request.params) + '&' + extraBody, true);
+		var url = request.url + '?' + extraBody + (stringifyQS(request.params)?'&':'') + stringifyQS(request.params);		
+
+		xhr.open(request.method, url, true);
 		// xhr.setRequestHeader("Content-Type","multipart/form-data");		
 
 		// angular.forEach(request.headers, function(value, name) {
